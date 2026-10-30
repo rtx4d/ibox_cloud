@@ -1,4 +1,4 @@
-"""Event entity: parking triggers (shock / motion) and new protected or parking recordings."""
+"""Event entity: parking triggers (shock / motion), new protected or parking recordings, new cloud clips."""
 from __future__ import annotations
 
 from typing import Any
@@ -11,7 +11,7 @@ from . import IboxConfigEntry
 from .coordinator import IboxCoordinator
 from .entity import IboxDeviceEntity
 
-EVENT_TYPES = ["parking_activity", "parking_recording", "event_recording"]
+EVENT_TYPES = ["parking_activity", "parking_recording", "event_recording", "cloud_recording"]
 
 
 async def async_setup_entry(

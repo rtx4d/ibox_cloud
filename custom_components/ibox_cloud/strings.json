@@ -120,7 +120,8 @@
             "state": {
               "parking_activity": "Parking mode triggered",
               "parking_recording": "New parking recording",
-              "event_recording": "New protected recording"
+              "event_recording": "New protected recording",
+              "cloud_recording": "New cloud recording"
             }
           }
         }

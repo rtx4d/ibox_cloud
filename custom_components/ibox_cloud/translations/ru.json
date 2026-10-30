@@ -120,7 +120,8 @@
             "state": {
               "parking_activity": "Срабатывание на парковке",
               "parking_recording": "Новая запись на парковке",
-              "event_recording": "Новая защищённая запись"
+              "event_recording": "Новая защищённая запись",
+              "cloud_recording": "Новая запись в облаке"
             }
           }
         }

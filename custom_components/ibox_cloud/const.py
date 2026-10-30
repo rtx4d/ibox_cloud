@@ -61,3 +61,5 @@ TITLE_OVERRIDES = {
 
 FILE_REFRESH_INTERVAL = 600  # seconds between memory card file list requests
 EVENT_FILE_INTERVAL = 120  # seconds between checks for new protected (shock) recordings
+CLOUD_VIDEO_INTERVAL = 120  # seconds between checks for new cloud recordings
+CLOUD_MEDIA_URL = "/api/ibox_cloud/cloud"  # decrypted cloud recordings: /<did>/<video id>/video|snapshot

@@ -17,8 +17,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import IboxApiClient, IboxAuthError, IboxError
-from .const import DOMAIN, EVENT_FILE_INTERVAL, FILE_REFRESH_INTERVAL, STATUS_ATTRS, UPDATE_INTERVAL
+from .api import IboxApiClient, IboxAuthError, IboxError, decrypt_cloud_file
+from .const import CLOUD_MEDIA_URL, CLOUD_VIDEO_INTERVAL, DOMAIN, EVENT_FILE_INTERVAL, FILE_REFRESH_INTERVAL, STATUS_ATTRS, UPDATE_INTERVAL
 from .junan import (
     CHANNEL_FRONT,
     CHANNEL_REAR,
@@ -68,6 +68,11 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # did -> callbacks of the event entities: callback(event_type, attributes)
         self.event_callbacks: dict[str, set] = {}
         self._unsub_event_files: Any = None
+        # Cloud recordings: did -> {video id: item} from any listing (storage links + key),
+        # with the time each was listed; ids seen by the poll (None until the baseline)
+        self.cloud: dict[str, dict[int, dict[str, Any]]] = {}
+        self._cloud_seen: dict[str, set[int] | None] = {}
+        self.cloud_cache: OrderedDict[tuple[str, int, str], bytes] = OrderedDict()
 
     def settings(self, cloud_type: str) -> list[dict[str, Any]]:
         """Flat list of setting descriptions for a cloud type."""
@@ -157,6 +162,14 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # give the broker a moment to accept our subscriptions before asking for files
         async_call_later(self.hass, 5, self._async_refresh_files)
 
+    @callback
+    def async_start_cloud_poll(self) -> Any:
+        """Look for new cloud recordings regularly; returns the unsubscribe callback."""
+        async_call_later(self.hass, 10, self._async_poll_cloud)
+        return async_track_time_interval(
+            self.hass, self._async_poll_cloud, timedelta(seconds=CLOUD_VIDEO_INTERVAL)
+        )
+
     async def async_stop_push(self) -> None:
         self.junan = None  # late MQTT messages are ignored from here on
         for unsub in (self._unsub_files, self._unsub_event_files):
@@ -216,6 +229,9 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if str(data.get("record_status")) == "1" and not was_recording and attrs.get("acc_status") == "0":
                 self._dashcam_event(dev_id, "parking_activity", {})
                 async_call_later(self.hass, 25, partial(self._async_refresh_files, (FILE_PARKING, FILE_EVENT)))
+                # the shock clip reaches the cloud about 45 s after the trigger
+                for delay in (60, 120):
+                    async_call_later(self.hass, delay, self._async_poll_cloud)
             if payload.get("time"):
                 devices[dev_id]["last_seen"] = max(devices[dev_id].get("last_seen") or 0, payload["time"] / 1000)
             if url == URL_RADAR_INFO and str(data.get("radar_type", "0")) != "0":
@@ -340,3 +356,136 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         previous = ((self.data or {}).get("devices", {}).get(dev_id) or {}).get("last_seen") or 0
         newest = max(reports) / 1000 if reports else 0
         return max(newest, previous) or None
+
+    # --- cloud recordings ----------------------------------------------------
+
+    async def _async_poll_cloud(self, _now: Any = None) -> None:
+        """Newest recordings of both cameras; ones not seen before fire "cloud_recording"."""
+        for dev_id in list((self.data or {}).get("devices", {})):
+            try:
+                items = await self._async_list_cloud(dev_id, CHANNEL_FRONT) + await self._async_list_cloud(
+                    dev_id, CHANNEL_REAR
+                )
+            except HomeAssistantError as err:
+                _LOGGER.debug("cloud video list for %s failed: %s", dev_id, err)
+                continue
+            seen = self._cloud_seen.get(dev_id)
+            self._cloud_seen[dev_id] = {int(item["id"]) for item in items}
+            if seen is None:
+                continue  # the first listing only sets the baseline
+            for item in sorted(items, key=lambda i: i.get("triggerTime") or 0):
+                if int(item["id"]) not in seen:
+                    self._dashcam_event(dev_id, "cloud_recording", self.cloud_video_info(dev_id, item))
+
+    async def _async_list_cloud(self, dev_id: str, channel: int, **query: Any) -> list[dict[str, Any]]:
+        try:
+            items = await self.client.cloud_videos(dev_id, channel, **query)
+        except IboxError as err:
+            raise HomeAssistantError(f"iBOX: cloud video list failed: {err}") from err
+        items = [item for item in items if "id" in item and item.get("videoKey")]
+        known = self.cloud.setdefault(dev_id, {})
+        now = time.time()
+        for item in items:
+            known[int(item["id"])] = {**item, "_listed": now}
+        return items
+
+    async def async_cloud_videos(
+        self,
+        dev_id: str,
+        channel: int = CHANNEL_FRONT,
+        video_type: int = 0,
+        start: float = 0,
+        end: float | None = None,
+        limit: int = 30,
+    ) -> list[dict[str, Any]]:
+        """One page of cloud recordings, newest first, start <= trigger time < end (seconds)."""
+        items = await self._async_list_cloud(
+            dev_id,
+            channel,
+            video_type=video_type,
+            start_ms=int(start * 1000),
+            end_ms=int(end * 1000) if end is not None else None,
+            size=limit,
+        )
+        return [self.cloud_video_info(dev_id, item) for item in items]
+
+    async def async_delete_cloud_videos(self, dev_id: str, video_ids: list[int]) -> list[int]:
+        """Delete cloud recordings; returns the ids that are really gone."""
+        known = self.cloud.get(dev_id) or {}
+        items = [known[i] for i in video_ids if i in known]
+        if len(items) != len(video_ids):
+            raise HomeAssistantError("iBOX: unknown cloud recording, refresh the list")
+        by_type: dict[int, list[dict[str, Any]]] = {}
+        for item in items:
+            by_type.setdefault(int(item.get("type") or 0), []).append(item)
+        try:
+            for video_type, group in by_type.items():
+                await self.client.delete_cloud_videos(dev_id, video_type, [i["triggerTime"] for i in group])
+        except IboxError as err:
+            raise HomeAssistantError(f"iBOX: cloud delete failed: {err}") from err
+        gone = []
+        for item in items:
+            if not await self._async_cloud_item(dev_id, item, cached=False):
+                gone.append(int(item["id"]))
+                known.pop(int(item["id"]), None)
+                for kind in ("video", "snapshot"):
+                    self.cloud_cache.pop((dev_id, int(item["id"]), kind), None)
+        return gone
+
+    async def _async_cloud_item(
+        self, dev_id: str, item: dict[str, Any], cached: bool = True
+    ) -> dict[str, Any] | None:
+        """The item with fresh storage links (they expire after an hour), None if it is gone."""
+        if cached and time.time() - item.get("_listed", 0) < 3000:
+            return item
+        trigger = int(item["triggerTime"])
+        for fresh in await self._async_list_cloud(
+            dev_id, int(item.get("channel") or CHANNEL_FRONT), start_ms=trigger - 1000, end_ms=trigger + 1000, size=10
+        ):
+            if int(fresh["id"]) == int(item["id"]):
+                return self.cloud[dev_id][int(item["id"])]
+        return None
+
+    @staticmethod
+    def cloud_video_info(dev_id: str, item: dict[str, Any]) -> dict[str, Any]:
+        """What the panel and automations see: no storage links or keys."""
+        base = f"{CLOUD_MEDIA_URL}/{dev_id}/{item['id']}"
+        return {
+            "id": item["id"],
+            "name": item.get("videoName"),
+            "camera": "rear" if item.get("channel") == CHANNEL_REAR else "front",
+            "trigger_time": (item.get("triggerTime") or 0) / 1000,
+            "expires": (item.get("expiredTime") or 0) / 1000,
+            "size": item.get("videoSize"),
+            "type": item.get("type"),
+            "video_url": f"{base}/video",
+            "snapshot_url": f"{base}/snapshot",
+        }
+
+    async def async_cloud_file(self, dev_id: str, video_id: int, kind: str) -> tuple[bytes, str]:
+        """Decrypted video or snapshot of a cloud recording and its file name."""
+        cached_key = (dev_id, video_id, kind)
+        item = (self.cloud.get(dev_id) or {}).get(video_id)
+        if item is None:
+            raise HomeAssistantError("iBOX: unknown cloud recording, refresh the list")
+        if cached_key in self.cloud_cache:
+            self.cloud_cache.move_to_end(cached_key)
+            return self.cloud_cache[cached_key], self._cloud_file_name(item, kind)
+        item = await self._async_cloud_item(dev_id, item)
+        if item is None:
+            raise HomeAssistantError("iBOX: the cloud recording was deleted or has expired")
+        url = item.get("videoPath" if kind == "video" else "snapshotPath")
+        try:
+            data = await self.client.download(url)
+            plain = await self.hass.async_add_executor_job(decrypt_cloud_file, data, item["videoKey"])
+        except (IboxError, ValueError) as err:
+            raise HomeAssistantError(f"iBOX: cloud recording unavailable: {err}") from err
+        self.cloud_cache[cached_key] = plain
+        # a few videos (≈3 MB each) and plenty of snapshots
+        while sum(len(v) for v in self.cloud_cache.values()) > 32_000_000:
+            self.cloud_cache.popitem(last=False)
+        return plain, self._cloud_file_name(item, kind)
+
+    @staticmethod
+    def _cloud_file_name(item: dict[str, Any], kind: str) -> str:
+        return f"{item.get('videoName') or item['id']}.{'mp4' if kind == 'video' else 'jpg'}"

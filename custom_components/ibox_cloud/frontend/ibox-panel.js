@@ -15,14 +15,20 @@ const TEXT = {
     connecting: "Подключение к регистратору…", ended: "Поток завершён", error: "Ошибка",
     noWebCodecs: "Браузер не умеет декодировать это видео (WebCodecs). Переключитесь на HLS.",
     hlsNote: "HLS через камеру Home Assistant: задержка 10–15 с.",
-    normal: "Обычные", event: "Защищённые", parking: "Парковка", newest: "Сначала новые", oldest: "Сначала старые",
+    normal: "Обычные", event: "Защищённые", parking: "Парковка", cloud: "Облако", download: "Скачать",
+    condition: "Условия записи", period: "Дата", from: "С", to: "По", apply: "Применить",
+    cond: { 0: "Все видео", 3: "G-сенсор во время движения", 4: "Ручная блокировка кнопкой", 2: "G-сенсор в режиме парковки", 1: "Датчик движения в режиме парковки" },
+    periods: { today: "Сегодня", yesterday: "Вчера", week: "Неделя", month: "Месяц", "3months": "3 месяца", custom: "Своё" },
+    select: "Выбрать", cancel: "Отмена", selectAll: "Выбрать все", selected: (n) => `Выбрано: ${n}`,
+    delete: "Удалить", deleteN: (n) => `Удалить (${n})`, confirmDelete: "Точно удалить?",
+    deleted: (n) => `Удалено: ${n}`, deletePartly: (n, m) => `Удалено ${n} из ${m}`, deleteFailed: "Не удалось удалить", cloudEmpty: "Записей в облаке за этот период нет.", newest: "Сначала новые", oldest: "Сначала старые",
     refresh: "Обновить", more: "Загрузить ещё", empty: "Записей нет", loading: "Загрузка…",
     playback: "Воспроизведение", close: "Закрыть", speed: "Скорость",
     noPush: "Канал MQTT не подключён — записи и события недоступны.",
     eventsEmpty: "Событий пока нет. Здесь появятся удары, парковка и срабатывания радара.",
     saved: "Сохранено", failed: "Не удалось сохранить",
     evRadar: "Радар", evOther: "Событие",
-    evTypes: { parking_activity: "Срабатывание на парковке", parking_recording: "Новая запись на парковке", event_recording: "Новая защищённая запись" },
+    evTypes: { parking_activity: "Срабатывание на парковке", parking_recording: "Новая запись на парковке", event_recording: "Новая защищённая запись", cloud_recording: "Новая запись в облаке" },
     nativeOnlyPlayback: "Воспроизведение записей работает только в нативном плеере.",
     devices: "Регистратор",
   },
@@ -38,14 +44,20 @@ const TEXT = {
     connecting: "Connecting to the dashcam…", ended: "Stream ended", error: "Error",
     noWebCodecs: "This browser cannot decode the video (WebCodecs). Switch to HLS.",
     hlsNote: "HLS through the Home Assistant camera: 10–15 s delay.",
-    normal: "Normal", event: "Protected", parking: "Parking", newest: "Newest first", oldest: "Oldest first",
+    normal: "Normal", event: "Protected", parking: "Parking", cloud: "Cloud", download: "Download",
+    condition: "Recording trigger", period: "Date", from: "From", to: "To", apply: "Apply",
+    cond: { 0: "All videos", 3: "G-sensor while driving", 4: "Manual lock button", 2: "G-sensor in parking mode", 1: "Motion sensor in parking mode" },
+    periods: { today: "Today", yesterday: "Yesterday", week: "Week", month: "Month", "3months": "3 months", custom: "Custom" },
+    select: "Select", cancel: "Cancel", selectAll: "Select all", selected: (n) => `Selected: ${n}`,
+    delete: "Delete", deleteN: (n) => `Delete (${n})`, confirmDelete: "Delete for sure?",
+    deleted: (n) => `Deleted: ${n}`, deletePartly: (n, m) => `Deleted ${n} of ${m}`, deleteFailed: "Could not delete", cloudEmpty: "No cloud recordings for this period.", newest: "Newest first", oldest: "Oldest first",
     refresh: "Refresh", more: "Load more", empty: "No recordings", loading: "Loading…",
     playback: "Playback", close: "Close", speed: "Speed",
     noPush: "MQTT channel is not connected — recordings and events are unavailable.",
     eventsEmpty: "No events yet. Shocks, parking and radar alerts will show up here.",
     saved: "Saved", failed: "Could not save",
     evRadar: "Radar", evOther: "Event",
-    evTypes: { parking_activity: "Parking mode triggered", parking_recording: "New parking recording", event_recording: "New protected recording" },
+    evTypes: { parking_activity: "Parking mode triggered", parking_recording: "New parking recording", event_recording: "New protected recording", cloud_recording: "New cloud recording" },
     nativeOnlyPlayback: "Recordings play only in the native player.",
     devices: "Dashcam",
   },
@@ -62,6 +74,11 @@ const TITLE_OVERRIDES = {
 // Options the app's remote control does not offer (still available under "Settings")
 const REMOTE_HIDDEN_OPTIONS = { volume: ["6"] };
 
+// Cloud recordings filter, in the app's order: videoType 0 all, 3 driving shock, 4 manual lock,
+// 2 parking shock, 1 parking motion
+const CLOUD_CONDITIONS = [0, 3, 4, 2, 1];
+const CLOUD_PERIODS = ["today", "yesterday", "week", "month", "3months", "custom"];
+
 const ICONS = {
   play: "M8,5.14V19.14L19,12.14L8,5.14Z",
   stop: "M18,18H6V6H18V18Z",
@@ -70,6 +87,10 @@ const ICONS = {
   volume: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
   mute: "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z",
   refresh: "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z",
+  download: "M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z",
+  delete: "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z",
+  check: "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
+  cloud: "M6.5,20Q4.22,20 2.61,18.43 1,16.85 1,14.58 1,12.63 2.17,11.1 3.35,9.57 5.25,9.15 5.88,6.85 7.75,5.43 9.63,4 12,4 14.93,4 16.96,6.04 19,8.07 19,11 20.73,11.2 21.86,12.5 23,13.78 23,15.5 23,17.38 21.69,18.69 20.38,20 18.5,20Z",
   lock: "M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.9,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z",
 };
 
@@ -84,6 +105,9 @@ const signalIcon = (dbm) => SIGNAL_ICONS.find(([min]) => dbm >= min)[1];
 
 const svg = (path, size = 24) =>
   `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true"><path fill="currentColor" d="${path}"/></svg>`;
+
+// value for <input type="datetime-local" step="1"> in local time
+const localInput = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -338,7 +362,10 @@ class IboxPanel extends HTMLElement {
     this._device = null; // full state incl. schema
     this._state = null; // live state from the subscription
     this._settingsTab = null;
-    this._files = { type: 1, channel: 1, sort: 0, items: [], loading: false, done: false, error: "" };
+    this._files = {
+      type: 1, channel: 1, sort: 0, items: [], loading: false, done: false, error: "",
+      cloud: { cond: 0, period: "week", from: "", to: "", selecting: false, selected: new Set() },
+    };
     this._thumbs = {};
     this._player = null;
     this._pbPlayer = null;
@@ -649,34 +676,70 @@ class IboxPanel extends HTMLElement {
   /* ---------------- recordings */
 
   _renderFiles(box) {
-    const t = this.t, f = this._files;
-    if (!this._state.push) { box.innerHTML = `<div class="card pad">${esc(t.noPush)}</div>`; return; }
-    const seg = (name, options, current) => `<div class="seg" data-name="${name}">${options
+    const t = this.t, f = this._files, c = f.cloud;
+    if (!this._state.push) f.type = "cloud"; // the cloud list works without the MQTT channel
+    const isCloud = f.type === "cloud";
+    const seg = (name, options, current, cls = "") => `<div class="seg ${cls}" data-name="${name}">${options
       .map(([v, l]) => `<button class="seg-btn ${String(v) === String(current) ? "on" : ""}" data-value="${v}">${esc(l)}</button>`).join("")}</div>`;
     box.innerHTML = `
       <div class="card playback" hidden>
         <div class="card-head"><span class="pb-title"></span><button class="icon-btn pb-close" title="${esc(t.close)}">${svg(ICONS.close)}</button></div>
-        <div class="player-box"><canvas class="video"></canvas><div class="overlay"><div class="overlay-text"></div></div></div>
+        <div class="player-box"><canvas class="video"></canvas><video class="video clip" controls playsinline hidden></video>
+          <div class="overlay"><div class="overlay-text"></div></div></div>
         <div class="controls">
           <button class="icon-btn pb-mute" title="${esc(t.sound)}">${svg(this._muted ? ICONS.mute : ICONS.volume)}</button>
           <span class="spacer"></span>
+          <button class="del-btn pb-del" hidden>${svg(ICONS.delete, 20)}<span></span></button>
+          <a class="icon-btn pb-dl" title="${esc(t.download)}" hidden>${svg(ICONS.download)}</a>
           <button class="icon-btn pb-full" title="${esc(t.fullscreen)}">${svg(ICONS.fullscreen)}</button>
         </div>
         <div class="statusline pb-status"></div>
       </div>
       <div class="filters">
-        ${seg("type", [[1, t.normal], [2, t.event], [3, t.parking]], f.type)}
+        ${seg("type", (this._state.push ? [[1, t.normal], [2, t.event], [3, t.parking]] : []).concat([["cloud", t.cloud]]), f.type)}
         ${seg("channel", [[1, t.front], [2, t.rear]], f.channel)}
-        ${seg("sort", [[0, t.newest], [1, t.oldest]], f.sort)}
+        ${isCloud ? "" : seg("sort", [[0, t.newest], [1, t.oldest]], f.sort)}
         <button class="icon-btn reload" title="${esc(t.refresh)}">${svg(ICONS.refresh)}</button>
+        ${isCloud ? `<span class="spacer"></span><button class="seg-btn select-btn ${c.selecting ? "on" : ""}">${esc(c.selecting ? t.cancel : t.select)}</button>` : ""}
       </div>
+      ${isCloud ? `
+      <div class="filters">
+        <span class="ctl-label">${esc(t.condition)}</span>
+        ${seg("cond", CLOUD_CONDITIONS.map((v) => [v, t.cond[v]]), c.cond, "wrap")}
+      </div>
+      <div class="filters">
+        <span class="ctl-label">${esc(t.period)}</span>
+        ${seg("period", CLOUD_PERIODS.map((p) => [p, t.periods[p]]), c.period, "wrap")}
+        <span class="custom-range" ${c.period === "custom" ? "" : "hidden"}>
+          <input type="datetime-local" step="1" class="dt dt-from" value="${esc(c.from)}" aria-label="${esc(t.from)}">
+          <span>—</span>
+          <input type="datetime-local" step="1" class="dt dt-to" value="${esc(c.to)}" aria-label="${esc(t.to)}">
+          <button class="seg-btn apply">${esc(t.apply)}</button>
+        </span>
+      </div>
+      <div class="select-bar" ${c.selecting ? "" : "hidden"}>
+        <span class="sel-count"></span>
+        <button class="seg-btn sel-all">${esc(t.selectAll)}</button>
+        <span class="spacer"></span>
+        <button class="del-btn sel-del">${svg(ICONS.delete, 20)}<span></span></button>
+      </div>` : ""}
       <div class="grid"></div>
       <div class="more-row"><button class="btn more" hidden>${esc(t.more)}</button><span class="files-note"></span></div>`;
     box.querySelectorAll(".filters .seg").forEach((s) => s.addEventListener("click", (ev) => {
       const btn = ev.target.closest(".seg-btn");
       if (!btn) return;
       s.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("on", b === btn));
-      this._files[s.dataset.name] = Number(btn.dataset.value);
+      const name = s.dataset.name, v = btn.dataset.value;
+      if (name === "cond") c.cond = Number(v);
+      else if (name === "period") {
+        c.period = v;
+        if (v === "custom") {
+          if (!c.from) { c.from = localInput(new Date(Date.now() - 86400000)); c.to = localInput(new Date()); }
+          this._renderFiles(box);
+          return;
+        }
+      } else this._files[name] = v === "cloud" ? v : Number(v);
+      if (name === "type") { c.selecting = false; c.selected.clear(); this._files.items = []; this._renderFiles(box); return; }
       this._loadFiles(true);
     }));
     box.querySelector(".reload").addEventListener("click", () => this._loadFiles(true));
@@ -691,23 +754,110 @@ class IboxPanel extends HTMLElement {
       const el = box.querySelector(".playback .player-box");
       (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.());
     });
-    if (f.items.length) this._renderGrid(); else this._loadFiles(true);
+    if (isCloud) {
+      box.querySelector(".apply").addEventListener("click", () => {
+        c.from = box.querySelector(".dt-from").value;
+        c.to = box.querySelector(".dt-to").value;
+        this._loadFiles(true);
+      });
+      box.querySelector(".select-btn").addEventListener("click", () => {
+        c.selecting = !c.selecting;
+        c.selected.clear();
+        this._renderFiles(box);
+      });
+      box.querySelector(".sel-all").addEventListener("click", () => {
+        const all = f.items.every((v) => c.selected.has(v.id));
+        f.items.forEach((v) => (all ? c.selected.delete(v.id) : c.selected.add(v.id)));
+        this._renderGrid();
+      });
+      this._confirmButton(box.querySelector(".sel-del"), () => (c.selected.size ? t.deleteN(c.selected.size) : ""),
+        () => this._deleteCloud([...c.selected]));
+    }
+    if (f.items.length) { this._renderGrid(); this._loadThumbs(); } else this._loadFiles(true);
+  }
+
+  /** Two-step delete button: the first click asks, the second (within 4 s) acts. */
+  _confirmButton(btn, label, action) {
+    const reset = () => { btn.classList.remove("armed"); btn.querySelector("span").textContent = label(); btn.disabled = !label(); };
+    btn._reset = reset;
+    reset();
+    btn.addEventListener("click", async () => {
+      if (!btn.classList.contains("armed")) {
+        btn.classList.add("armed");
+        btn.querySelector("span").textContent = this.t.confirmDelete;
+        clearTimeout(btn._timer);
+        btn._timer = setTimeout(reset, 4000);
+        return;
+      }
+      clearTimeout(btn._timer);
+      btn.disabled = true;
+      await action();
+      reset();
+    });
+  }
+
+  async _deleteCloud(ids) {
+    const t = this.t, f = this._files, c = f.cloud;
+    if (!ids.length) return;
+    try {
+      const res = await this._hass.callWS({ type: "ibox_cloud/cloud_delete", device_id: this._device.device_id, ids });
+      const gone = new Set(res.deleted);
+      if (this._playing && gone.has(this._playing.id)) this._stopPlayback();
+      f.items = f.items.filter((v) => !gone.has(v.id));
+      gone.forEach((id) => c.selected.delete(id));
+      this._showToast(gone.size === ids.length ? t.deleted(gone.size) : t.deletePartly(gone.size, ids.length));
+    } catch (e) {
+      this._showToast(`${t.deleteFailed}: ${e.message || e}`);
+    }
+    this._renderGrid();
+  }
+
+  _cloudRange() {
+    const c = this._files.cloud, now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sec = (d) => d.getTime() / 1000;
+    const monthsAgo = (n) => { const d = new Date(now); d.setMonth(d.getMonth() - n); return sec(d); };
+    switch (c.period) {
+      case "today": return { start: sec(midnight) };
+      case "yesterday": return { start: sec(midnight) - 86400, end: sec(midnight) };
+      case "week": return { start: sec(now) - 7 * 86400 };
+      case "month": return { start: monthsAgo(1) };
+      case "3months": return { start: monthsAgo(3) };
+      default: { // custom: both ends inclusive, to the second
+        const from = c.from ? new Date(c.from) : null, to = c.to ? new Date(c.to) : null;
+        const range = { start: from && !isNaN(from) ? sec(from) : 0 };
+        if (to && !isNaN(to)) range.end = sec(to) + 1;
+        return range;
+      }
+    }
   }
 
   async _loadFiles(reset) {
     const f = this._files;
     if (f.loading) return;
-    if (reset) { f.items = []; f.done = false; }
+    if (reset) { f.items = []; f.done = false; f.cloud.selected.clear(); }
     f.loading = true;
     f.error = "";
     this._renderGrid();
     try {
-      const res = await this._hass.callWS({
-        type: "ibox_cloud/files", device_id: this._device.device_id,
-        file_type: f.type, channel: f.channel, sort: f.sort, offset: f.items.length, limit: 20,
-      });
-      f.items = f.items.concat(res.files);
-      f.done = res.files.length < 20;
+      if (f.type === "cloud") {
+        const range = this._cloudRange();
+        const last = f.items[f.items.length - 1];
+        if (last) range.end = last.trigger_time; // next page: older than the last one shown
+        const res = await this._hass.callWS({
+          type: "ibox_cloud/cloud_videos", device_id: this._device.device_id,
+          channel: f.channel, video_type: f.cloud.cond, limit: 30, ...range,
+        });
+        f.items = f.items.concat(res.videos);
+        f.done = res.videos.length < 30;
+      } else {
+        const res = await this._hass.callWS({
+          type: "ibox_cloud/files", device_id: this._device.device_id,
+          file_type: f.type, channel: f.channel, sort: f.sort, offset: f.items.length, limit: 20,
+        });
+        f.items = f.items.concat(res.files);
+        f.done = res.files.length < 20;
+      }
     } catch (e) {
       f.error = e.message || String(e);
     }
@@ -717,6 +867,7 @@ class IboxPanel extends HTMLElement {
   }
 
   _fileTime(file) {
+    if (file.trigger_time) return new Date(file.trigger_time * 1000).toLocaleString();
     const m = /(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(file.fileName || "");
     if (m) return `${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}:${m[6]}`;
     return new Date(file.time).toLocaleString();
@@ -726,8 +877,18 @@ class IboxPanel extends HTMLElement {
     const box = this.shadowRoot.querySelector(".content");
     const grid = box.querySelector(".grid");
     if (!grid) return;
-    const f = this._files, t = this.t;
+    const f = this._files, t = this.t, c = f.cloud;
     grid.innerHTML = f.items.map((file, i) => {
+      if (file.video_url) {
+        const thumb = this._thumbs[file.snapshot_url];
+        const picked = c.selecting && c.selected.has(file.id);
+        return `<button class="file ${picked ? "picked" : ""}" data-i="${i}">
+          <div class="thumb">${thumb ? `<img src="${thumb}" alt="">` : ""}<span class="lock">${svg(ICONS.cloud, 14)}</span>
+            ${c.selecting ? `<span class="check">${picked ? svg(ICONS.check, 18) : ""}</span>` : ""}</div>
+          <div class="file-time">${esc(this._fileTime(file))}</div>
+          <div class="file-meta">${esc(t.cond[file.type] || "")}</div>
+        </button>`;
+      }
       const thumb = this._thumbs[file.fileName];
       return `<button class="file" data-i="${i}">
         <div class="thumb">${thumb ? `<img src="data:image/jpeg;base64,${thumb}" alt="">` : ""}
@@ -736,12 +897,32 @@ class IboxPanel extends HTMLElement {
         <div class="file-meta">${esc(((file.size || 0) / 1e6).toFixed(1))} MB · ${esc(file.resolution || "")}</div>
       </button>`;
     }).join("");
-    grid.querySelectorAll(".file").forEach((b) => b.addEventListener("click", () => this._play(f.items[Number(b.dataset.i)])));
+    grid.querySelectorAll(".file").forEach((b) => b.addEventListener("click", () => {
+      const file = f.items[Number(b.dataset.i)];
+      if (file.video_url && c.selecting) {
+        c.selected.has(file.id) ? c.selected.delete(file.id) : c.selected.add(file.id);
+        this._renderGrid();
+      } else this._play(file);
+    }));
     box.querySelector(".more").hidden = f.done || f.loading || !f.items.length;
-    box.querySelector(".files-note").textContent = f.loading ? t.loading : f.error ? `${t.error}: ${f.error}` : f.items.length ? "" : t.empty;
+    box.querySelector(".files-note").textContent = f.loading ? t.loading : f.error ? `${t.error}: ${f.error}` : f.items.length ? "" : f.type === "cloud" ? t.cloudEmpty : t.empty;
+    const count = box.querySelector(".sel-count");
+    if (count) count.textContent = t.selected(c.selected.size);
+    box.querySelector(".sel-del")?._reset?.();
   }
 
   async _loadThumbs() {
+    if (this._files.type === "cloud") {
+      for (const file of this._files.items.filter((v) => !this._thumbs[v.snapshot_url])) {
+        try {
+          const resp = await this._hass.fetchWithAuth(file.snapshot_url);
+          if (!resp.ok) continue;
+          this._thumbs[file.snapshot_url] = URL.createObjectURL(await resp.blob());
+          this._renderGrid();
+        } catch (e) { /* thumbnails are optional */ }
+      }
+      return;
+    }
     const missing = this._files.items.filter((f) => !this._thumbs[f.fileName]).slice(0, 20);
     if (!missing.length) return;
     try {
@@ -761,7 +942,19 @@ class IboxPanel extends HTMLElement {
     card.querySelector(".pb-title").textContent = `${this.t.playback}: ${this._fileTime(file)}`;
     card.scrollIntoView({ behavior: "smooth", block: "start" });
     this._stopPlayback(true);
+    this._playing = file;
     const overlay = (text) => { const o = card.querySelector(".overlay"); o.hidden = !text; o.querySelector(".overlay-text").textContent = text || ""; };
+    const cloud = Boolean(file.video_url);
+    card.querySelector("canvas.video").hidden = cloud;
+    card.querySelector(".clip").hidden = !cloud;
+    card.querySelector(".pb-mute").hidden = cloud;
+    card.querySelector(".pb-dl").hidden = true;
+    card.querySelector(".pb-status").textContent = "";
+    const del = card.querySelector(".pb-del");
+    del.hidden = !cloud;
+    if (cloud && !del._reset) this._confirmButton(del, () => this.t.delete, () => this._deleteCloud([this._playing.id]));
+    del._reset?.();
+    if (cloud) { this._playCloud(card, file, overlay); return; }
     if (!NativePlayer.supported()) { overlay(this.t.nativeOnlyPlayback); return; }
     this._pbPlayer = new NativePlayer(
       this._hass, this._state.live.ws_path, card.querySelector(".video"),
@@ -781,8 +974,37 @@ class IboxPanel extends HTMLElement {
     this._pbPlayer.open({ cmd: "playback", path: file.pathName, file: file.fileName });
   }
 
+  async _playCloud(card, file, overlay) {
+    // fetched whole (~3 MB): the endpoint needs the auth header, which <video src> cannot send
+    const token = (this._clipToken = {});
+    overlay(this.t.loading);
+    try {
+      const resp = await this._hass.fetchWithAuth(file.video_url);
+      if (!resp.ok) throw new Error((await resp.text()) || resp.status);
+      const blob = await resp.blob();
+      if (token !== this._clipToken) return;
+      this._clipUrl = URL.createObjectURL(blob);
+      const video = card.querySelector(".clip");
+      video.muted = this._muted;
+      video.src = this._clipUrl;
+      const dl = card.querySelector(".pb-dl");
+      dl.href = this._clipUrl;
+      dl.download = `${file.name || file.id}.mp4`;
+      dl.hidden = false;
+      overlay("");
+      video.play().catch(() => {});
+    } catch (e) {
+      if (token === this._clipToken) overlay(`${this.t.error}: ${e.message || e}`);
+    }
+  }
+
   _stopPlayback(keepCard) {
     if (this._pbPlayer) { this._pbPlayer.send({ cmd: "stop" }); this._pbPlayer.close(); this._pbPlayer = null; }
+    this._clipToken = null;
+    this._playing = null;
+    const clip = this.shadowRoot.querySelector(".content .clip");
+    if (clip) { clip.pause(); clip.removeAttribute("src"); clip.load(); }
+    if (this._clipUrl) { URL.revokeObjectURL(this._clipUrl); this._clipUrl = null; }
     if (!keepCard) {
       const card = this.shadowRoot.querySelector(".content .playback");
       if (card) card.hidden = true;
@@ -943,6 +1165,7 @@ const STYLE = `
   .player-box { position: relative; background: #000; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
   .player-box:fullscreen { aspect-ratio: auto; }
   .video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .video[hidden], .icon-btn[hidden] { display: none; }
   .hls { width: 100%; }
   .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
     color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
@@ -972,6 +1195,28 @@ const STYLE = `
   .file { text-align: left; background: var(--card-background-color); border: 1px solid var(--divider-color); border-radius: 12px; padding: 0;
     overflow: hidden; cursor: pointer; color: var(--primary-text-color); font: inherit; transition: border-color .15s, transform .15s; }
   .file:hover { border-color: var(--primary-color); }
+  .file.picked { border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--primary-color) inset; }
+  .check { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff;
+    background: rgba(0,0,0,.4); color: #fff; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+  .file.picked .check { background: var(--primary-color); border-color: var(--primary-color); }
+  .filters .seg.wrap { border: 0; border-radius: 0; gap: 6px; flex-wrap: wrap; overflow: visible; }
+  .filters .seg.wrap .seg-btn { border: 1px solid var(--divider-color); border-radius: 8px; }
+  .filters .seg.wrap .seg-btn.on { border-color: var(--primary-color); }
+  .filters > .ctl-label:first-child { min-width: 104px; margin-left: 4px; }
+  .custom-range { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .custom-range[hidden] { display: none; }
+  .dt { height: 32px; border-radius: 8px; border: 1px solid var(--divider-color); background: var(--card-background-color);
+    color: var(--primary-text-color); font: inherit; font-size: 13px; padding: 0 8px; color-scheme: light dark; }
+  .select-btn, .apply, .sel-all { border: 1px solid var(--divider-color); border-radius: 8px; }
+  .select-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px;
+    background: var(--secondary-background-color, rgba(127,127,127,.1)); }
+  .select-bar[hidden] { display: none; }
+  .del-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 18px; border: 0;
+    background: none; color: var(--error-color, #db4437); font: inherit; font-size: 14px; cursor: pointer; }
+  .del-btn:hover { background: rgba(219,68,55,.12); }
+  .del-btn.armed { background: var(--error-color, #db4437); color: #fff; }
+  .del-btn:disabled { opacity: .4; cursor: default; }
+  .del-btn[hidden] { display: none; }
   .thumb { position: relative; aspect-ratio: 16 / 9; background: #111; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .dur { position: absolute; right: 6px; bottom: 6px; background: rgba(0,0,0,.7); color: #fff; font-size: 12px; padding: 1px 6px; border-radius: 4px; }

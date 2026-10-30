@@ -137,6 +137,43 @@ async def ws_thumbnails(hass: HomeAssistant, connection: websocket_api.ActiveCon
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): f"{DOMAIN}/cloud_videos",
+        vol.Required("device_id"): str,
+        vol.Optional("channel", default=1): vol.In([1, 2]),
+        # 0 all, 1 parking motion, 2 parking shock, 3 driving shock, 4 manual lock
+        vol.Optional("video_type", default=0): vol.In([0, 1, 2, 3, 4]),
+        vol.Optional("start", default=0): vol.Coerce(float),
+        vol.Optional("end"): vol.Coerce(float),
+        vol.Optional("limit", default=30): vol.All(int, vol.Range(min=1, max=100)),
+    }
+)
+@websocket_api.async_response
+async def ws_cloud_videos(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    """One page of the recordings the dashcam uploaded to the cloud; page on with end = last trigger_time."""
+    coordinator, _stream = _hub(hass, msg["device_id"])
+    videos = await coordinator.async_cloud_videos(
+        msg["device_id"], msg["channel"], msg["video_type"], msg["start"], msg.get("end"), msg["limit"]
+    )
+    connection.send_result(msg["id"], {"videos": videos})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/cloud_delete",
+        vol.Required("device_id"): str,
+        vol.Required("ids"): vol.All([int], vol.Length(min=1, max=100)),
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_cloud_delete(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    coordinator, _stream = _hub(hass, msg["device_id"])
+    deleted = await coordinator.async_delete_cloud_videos(msg["device_id"], msg["ids"])
+    connection.send_result(msg["id"], {"deleted": deleted})
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): f"{DOMAIN}/live_options",
         vol.Required("device_id"): str,
         vol.Optional("quality"): vol.In([1, 2]),
@@ -158,5 +195,5 @@ def ws_live_options(hass: HomeAssistant, connection: websocket_api.ActiveConnect
 
 @callback
 def async_register(hass: HomeAssistant) -> None:
-    for command in (ws_devices, ws_subscribe, ws_set_attr, ws_files, ws_thumbnails, ws_live_options):
+    for command in (ws_devices, ws_subscribe, ws_set_attr, ws_files, ws_thumbnails, ws_cloud_videos, ws_cloud_delete, ws_live_options):
         websocket_api.async_register_command(hass, command)

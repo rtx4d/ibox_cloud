@@ -15,6 +15,7 @@ from .api import IboxApiClient
 from .const import CONF_SHOW_PANEL, CONF_TOKEN, DOMAIN
 from .coordinator import IboxCoordinator
 from .live import IboxLiveView, IboxStreamWebSocketView, LiveStream
+from .media import IboxCloudMediaView
 from .ws_api import async_register as async_register_ws
 
 PANEL_URL_PATH = "ibox"
@@ -49,6 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> bool
         domain_data["http"] = True
         hass.http.register_view(IboxLiveView(streams))
         hass.http.register_view(IboxStreamWebSocketView(hubs))
+        hass.http.register_view(IboxCloudMediaView(hubs))
         async_register_ws(hass)
         await hass.http.async_register_static_paths(
             [StaticPathConfig(PANEL_STATIC_URL, os.path.dirname(PANEL_FILE), False)]
@@ -65,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> bool
     _disable_recording_entities_once(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     await coordinator.async_start_push()
+    entry.async_on_unload(coordinator.async_start_cloud_poll())
 
     async def _stop_push(_event: Event) -> None:
         await coordinator.async_stop_push()

@@ -7,9 +7,12 @@ coordinator tolerates missing keys so the integration loads either way.
 from __future__ import annotations
 
 import logging
+import struct
+import time
 from typing import Any
 
 import aiohttp
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .const import (
     API_BASE,
@@ -21,6 +24,24 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Cloud recordings are AES-GCM encrypted with the per-video "videoKey" and this fixed IV
+# (IV_JUNAN in the app's BuildConfig).
+CLOUD_VIDEO_IV = bytes.fromhex("2b7e151628aed2a6abf71588")
+
+
+def decrypt_cloud_file(data: bytes, video_key: str) -> bytes:
+    """Decrypt a cloud video or snapshot; videos lose the zero padding after their last box."""
+    plain = AESGCM(bytes.fromhex(video_key)).decrypt(CLOUD_VIDEO_IV, data, None)
+    if plain[4:8] != b"ftyp":
+        return plain
+    pos = 0
+    while pos + 8 <= len(plain):
+        size = struct.unpack_from(">I", plain, pos)[0]
+        if size < 8 or pos + size > len(plain):
+            break
+        pos += size
+    return plain[:pos] if pos else plain
 
 
 class IboxError(Exception):
@@ -157,6 +178,59 @@ class IboxApiClient:
                 return await resp.json(content_type=None)
         except aiohttp.ClientError as err:
             raise IboxError(f"settings file download failed: {err}") from err
+
+    # --- cloud recordings (uploaded by the dashcam after a shock) -------------
+
+    async def cloud_videos(
+        self,
+        did: str,
+        channel: int,
+        video_type: int = 0,
+        start_ms: int = 0,
+        end_ms: int | None = None,
+        size: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Cloud recordings of one camera, newest first, start <= trigger time < end.
+
+        video_type: 0 all, 1 parking motion, 2 parking shock, 3 driving shock, 4 manual lock
+        (EEventS3Videos in the app). The storage links inside are valid for an hour.
+        """
+        body = {
+            "deviceId": did,
+            "endTime": end_ms if end_ms is not None else int(time.time() * 1000) + 86_400_000,
+            "startTime": start_ms,
+            "videoType": video_type,
+            "channel": channel,
+            "size": size,
+        }
+        data = await self._request("POST", CLOUD_BASE, "/api/junan/device/video/list", json=body)
+        answers = [item for item in (data or {}).get("data") or [] if isinstance(item, dict)]
+        if not answers:
+            return []
+        if answers[0].get("code") not in (0, None):
+            raise IboxError(f"cloud video list: {answers[0].get('message')}")
+        return answers[0].get("result") or []
+
+    async def delete_cloud_videos(self, did: str, video_type: int, trigger_times: list[int]) -> None:
+        """Delete cloud recordings of one type, addressed by trigger time (ms).
+
+        The cloud answers "Success" even for unknown times, so callers re-list to confirm.
+        """
+        body = {"deviceId": did, "type": video_type, "triggerTimeList": trigger_times}
+        data = await self._request("POST", CLOUD_BASE, "/api/junan/device/video/delete", json=body)
+        message = ((data or {}).get("data") or {}).get("message")
+        if isinstance(message, dict) and message.get("code") not in (0, None):
+            raise IboxError(f"cloud video delete: {message.get('message')}")
+
+    async def download(self, url: str) -> bytes:
+        """Fetch a pre-signed storage link (no API headers)."""
+        try:
+            async with self._session.get(url, timeout=aiohttp.ClientTimeout(total=120)) as resp:
+                if resp.status != 200:
+                    raise IboxError(f"download failed: HTTP {resp.status}")
+                return await resp.read()
+        except aiohttp.ClientError as err:
+            raise IboxError(f"download failed: {err}") from err
 
     # --- tracking / trips ---------------------------------------------------
 
