@@ -1,7 +1,12 @@
 {
   "domain": "ibox_cloud",
   "name": "iBOX Cloud",
-  "codeowners": ["@rtx4d"],
+  "after_dependencies": [
+    "stream"
+  ],
+  "codeowners": [
+    "@rtx4d"
+  ],
   "config_flow": true,
   "dependencies": [
     "frontend",
@@ -16,8 +21,5 @@
   "requirements": [
     "paho-mqtt>=2.0.0"
   ],
-  "version": "1.0.0",
-  "after_dependencies": [
-    "stream"
-  ]
+  "version": "1.0.0"
 }

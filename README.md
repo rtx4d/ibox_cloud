@@ -87,3 +87,7 @@ If you already have a token, paste it into the "Token" field.
 - This integration is **unofficial** and not affiliated with iBOX. The cloud protocol may change at any time.
 - Live view and playback use the dashcam's **mobile data**.
 - Video is **H.265**: the native player works in Chrome / Edge / Safari; in other browsers switch the player to HLS.
+
+---
+
+Дизайн панели вдохновлён [hass-xmeye](https://github.com/Moxnatiy/hass-xmeye) · Panel layout inspired by [hass-xmeye](https://github.com/Moxnatiy/hass-xmeye)
