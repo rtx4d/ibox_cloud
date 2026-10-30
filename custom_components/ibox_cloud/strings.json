@@ -1,0 +1,140 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "iBOX Cloud",
+        "description": "Sign in with the phone number used in the iBOX Assist app. If you already have a token, paste it to skip signing in again.",
+        "data": {
+          "phone": "Phone number",
+          "use_call": "Verify by call instead of SMS",
+          "token": "Token (optional)"
+        }
+      },
+      "code": {
+        "title": "Confirmation code",
+        "description": "Enter the code from the SMS.",
+        "data": {
+          "code": "Code"
+        }
+      },
+      "call": {
+        "title": "Verification call",
+        "description": "Call {number} from your phone. The call is dropped automatically, then press Submit."
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the iBOX cloud.",
+      "invalid_code": "The code was rejected.",
+      "invalid_token": "The token was rejected. Leave the field empty to sign in by SMS or call."
+    },
+    "abort": {
+      "already_configured": "This phone number is already configured."
+    }
+  },
+  "entity": {
+    "device_tracker": {
+      "car": {
+        "name": "Location"
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Internet"
+      },
+      "recording": {
+        "name": "Recording"
+      },
+      "ignition": {
+        "name": "Ignition"
+      },
+      "gps": {
+        "name": "GPS fix"
+      }
+    },
+    "sensor": {
+      "last_online": {
+        "name": "Last online"
+      },
+      "signal": {
+        "name": "Signal strength"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "sd_free": {
+        "name": "Memory card free"
+      },
+      "sd_total": {
+        "name": "Memory card size"
+      },
+      "latest_video": {
+        "name": "Latest recording"
+      },
+      "latest_event": {
+        "name": "Latest event recording"
+      },
+      "latest_parking": {
+        "name": "Latest parking recording"
+      },
+      "radar_strength": {
+        "name": "Radar signal"
+      }
+    },
+    "image": {
+      "latest_video": {
+        "name": "Latest recording"
+      },
+      "latest_event": {
+        "name": "Latest event recording"
+      },
+      "latest_parking": {
+        "name": "Latest parking recording"
+      }
+    },
+    "camera": {
+      "live": {
+        "name": "Live"
+      }
+    },
+    "select": {
+      "live_quality": {
+        "name": "Live quality",
+        "state": {
+          "high": "High (720p)",
+          "low": "Low (360p)"
+        }
+      },
+      "live_camera": {
+        "name": "Live camera",
+        "state": {
+          "front": "Front",
+          "rear": "Rear"
+        }
+      }
+    },
+    "event": {
+      "dashcam_event": {
+        "name": "Dashcam event",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "parking_activity": "Parking mode triggered",
+              "parking_recording": "New parking recording",
+              "event_recording": "New protected recording"
+            }
+          }
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "show_panel": "Show the iBOX Cloud panel in the sidebar"
+        }
+      }
+    }
+  }
+}

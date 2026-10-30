@@ -1,0 +1,41 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "gps": {
+        "default": "mdi:crosshairs-gps"
+      }
+    },
+    "device_tracker": {
+      "car": {
+        "default": "mdi:map-marker"
+      }
+    },
+    "select": {
+      "live_camera": {
+        "default": "mdi:camera-flip"
+      },
+      "live_quality": {
+        "default": "mdi:video-standard-definition"
+      }
+    },
+    "sensor": {
+      "signal": {
+        "default": "mdi:signal",
+        "range": {
+          "-200": "mdi:signal-cellular-outline",
+          "-110": "mdi:signal-cellular-1",
+          "-100": "mdi:signal-cellular-2",
+          "-90": "mdi:signal-cellular-3"
+        }
+      },
+      "radar_strength": {
+        "default": "mdi:radar"
+      }
+    },
+    "event": {
+      "dashcam_event": {
+        "default": "mdi:car-emergency"
+      }
+    }
+  }
+}

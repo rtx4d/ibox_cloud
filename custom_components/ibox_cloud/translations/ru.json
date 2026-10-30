@@ -1,0 +1,140 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "iBOX Cloud",
+        "description": "Войдите по номеру телефона из приложения iBOX Assist. Если токен уже получен, вставьте его — повторный вход не понадобится.",
+        "data": {
+          "phone": "Номер телефона",
+          "use_call": "Подтверждение звонком вместо SMS",
+          "token": "Токен (необязательно)"
+        }
+      },
+      "code": {
+        "title": "Код подтверждения",
+        "description": "Введите код из SMS.",
+        "data": {
+          "code": "Код"
+        }
+      },
+      "call": {
+        "title": "Подтверждение звонком",
+        "description": "Позвоните со своего телефона на номер {number}. Вызов сбросится автоматически, после этого нажмите «Подтвердить»."
+      }
+    },
+    "error": {
+      "cannot_connect": "Не удалось подключиться к облаку iBOX.",
+      "invalid_code": "Код отклонён.",
+      "invalid_token": "Токен не принят. Оставьте поле пустым, чтобы войти по SMS или звонку."
+    },
+    "abort": {
+      "already_configured": "Этот номер уже добавлен."
+    }
+  },
+  "entity": {
+    "device_tracker": {
+      "car": {
+        "name": "Местоположение"
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Интернет"
+      },
+      "recording": {
+        "name": "Запись"
+      },
+      "ignition": {
+        "name": "Зажигание"
+      },
+      "gps": {
+        "name": "GPS"
+      }
+    },
+    "sensor": {
+      "last_online": {
+        "name": "Последний выход на связь"
+      },
+      "signal": {
+        "name": "Уровень сигнала"
+      },
+      "temperature": {
+        "name": "Температура"
+      },
+      "sd_free": {
+        "name": "Свободно на карте памяти"
+      },
+      "sd_total": {
+        "name": "Объём карты памяти"
+      },
+      "latest_video": {
+        "name": "Последняя запись"
+      },
+      "latest_event": {
+        "name": "Последняя защищённая запись"
+      },
+      "latest_parking": {
+        "name": "Последняя запись на парковке"
+      },
+      "radar_strength": {
+        "name": "Сигнал радара"
+      }
+    },
+    "image": {
+      "latest_video": {
+        "name": "Последняя запись"
+      },
+      "latest_event": {
+        "name": "Последняя защищённая запись"
+      },
+      "latest_parking": {
+        "name": "Последняя запись на парковке"
+      }
+    },
+    "camera": {
+      "live": {
+        "name": "Прямой эфир"
+      }
+    },
+    "select": {
+      "live_quality": {
+        "name": "Качество эфира",
+        "state": {
+          "high": "Высокое (720p)",
+          "low": "Низкое (360p)"
+        }
+      },
+      "live_camera": {
+        "name": "Камера эфира",
+        "state": {
+          "front": "Передняя",
+          "rear": "Задняя"
+        }
+      }
+    },
+    "event": {
+      "dashcam_event": {
+        "name": "Событие регистратора",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "parking_activity": "Срабатывание на парковке",
+              "parking_recording": "Новая запись на парковке",
+              "event_recording": "Новая защищённая запись"
+            }
+          }
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Параметры",
+        "data": {
+          "show_panel": "Показывать панель iBOX Cloud в боковом меню"
+        }
+      }
+    }
+  }
+}
