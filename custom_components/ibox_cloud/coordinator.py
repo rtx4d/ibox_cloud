@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from functools import partial
 import logging
 import time
@@ -18,7 +19,7 @@ from homeassistant.helpers.event import async_call_later, async_track_time_inter
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import IboxApiClient, IboxAuthError, IboxError, decrypt_cloud_file
-from .const import CLOUD_MEDIA_URL, CLOUD_VIDEO_INTERVAL, DOMAIN, EVENT_FILE_INTERVAL, FILE_REFRESH_INTERVAL, STATUS_ATTRS, UPDATE_INTERVAL
+from .const import CLOUD_MEDIA_URL, CLOUD_VIDEO_INTERVAL, DOMAIN, EVENT_FILE_INTERVAL, NOTIFICATION_INTERVAL, FILE_REFRESH_INTERVAL, STATUS_ATTRS, UPDATE_INTERVAL
 from .junan import (
     CHANNEL_FRONT,
     CHANNEL_REAR,
@@ -72,6 +73,7 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # with the time each was listed; ids seen by the poll (None until the baseline)
         self.cloud: dict[str, dict[int, dict[str, Any]]] = {}
         self._cloud_seen: dict[str, set[int] | None] = {}
+        self._notifications_seen: set[int] | None = None  # None until the first read (the baseline)
         self.cloud_cache: OrderedDict[tuple[str, int, str], bytes] = OrderedDict()
 
     def settings(self, cloud_type: str) -> list[dict[str, Any]]:
@@ -169,6 +171,66 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return async_track_time_interval(
             self.hass, self._async_poll_cloud, timedelta(seconds=CLOUD_VIDEO_INTERVAL)
         )
+
+    @callback
+    def async_start_notification_poll(self) -> Any:
+        """Read the app's notification history regularly; returns the unsubscribe callback."""
+        async_call_later(self.hass, 5, self._async_poll_notifications)
+        return async_track_time_interval(
+            self.hass, self._async_poll_notifications, timedelta(seconds=NOTIFICATION_INTERVAL)
+        )
+
+    async def _async_poll_notifications(self, _now: Any = None) -> None:
+        """Turn new app notifications into events.
+
+        The cloud sends them to the phone through Google/Huawei push, which HA cannot receive,
+        but it also keeps a history: a shock ("Your iBOX detected a shock") arrives there first,
+        then "Shock video saved" once the clip is in the cloud.
+        """
+        try:
+            history = await self.client.push_history()
+        except IboxError as err:
+            _LOGGER.debug("notification history failed: %s", err)
+            return
+        ids = {item["id"] for item in history if isinstance(item.get("id"), int)}
+        seen, self._notifications_seen = self._notifications_seen, (self._notifications_seen or set()) | ids
+        if seen is None:
+            return
+        devices = list((self.data or {}).get("devices", {}))
+        new_video = False
+        for item in sorted((i for i in history if i.get("id") in ids - seen), key=lambda i: i["id"]):
+            video = self._notification_video(item)
+            targets = [video["deviceId"]] if video.get("deviceId") in devices else devices
+            info = {
+                "title": item.get("title"),
+                "message": item.get("message"),
+                "topic": item.get("topic"),
+                "created_at": item.get("created_at"),
+            }
+            if video:
+                new_video = True
+                continue
+            if item.get("topic") == "control":
+                kind = "shock"
+            elif item.get("topic") == "software":
+                kind = "software_update"
+            else:
+                kind = "notification"
+            for dev_id in targets:
+                self._dashcam_event(dev_id, kind, info)
+        if new_video:
+            # the clip is in the cloud now: list it right away for the "cloud_recording" event
+            await self._async_poll_cloud()
+
+    @staticmethod
+    def _notification_video(item: dict[str, Any]) -> dict[str, Any]:
+        """The saved-video details of a notification ({} for other notifications)."""
+        raw = (item.get("data") or {}).get("junan") if isinstance(item.get("data"), dict) else None
+        try:
+            junan = json.loads(raw) if isinstance(raw, str) else raw
+        except ValueError:
+            return {}
+        return junan if isinstance(junan, dict) and junan.get("type") == "videoEvent" else {}
 
     async def async_stop_push(self) -> None:
         self.junan = None  # late MQTT messages are ignored from here on

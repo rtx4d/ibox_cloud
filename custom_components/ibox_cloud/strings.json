@@ -121,7 +121,10 @@
               "parking_activity": "Parking mode triggered",
               "parking_recording": "New parking recording",
               "event_recording": "New protected recording",
-              "cloud_recording": "New cloud recording"
+              "cloud_recording": "New cloud recording",
+              "shock": "Shock detected",
+              "software_update": "Software update",
+              "notification": "Notification"
             }
           }
         }

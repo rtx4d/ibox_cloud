@@ -68,6 +68,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> bool
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     await coordinator.async_start_push()
     entry.async_on_unload(coordinator.async_start_cloud_poll())
+    entry.async_on_unload(coordinator.async_start_notification_poll())
 
     async def _stop_push(_event: Event) -> None:
         await coordinator.async_stop_push()

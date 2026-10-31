@@ -20,10 +20,11 @@
 
 - **Прямой эфир** с регистратора со звуком (720p / 360p, передняя / задняя камера)
 - **Записи с карты памяти**: обычные, защищённые, парковка
-- **Записи из облака**: ролики ударов на парковке, которые регистратор сам загружает в облако (хранятся сутки) - фильтры по условию записи, камере и дате, просмотр, скачивание и удаление
+- **Записи из облака**: ролики ударов на парковке, которые регистратор сам загружает в облако - фильтры по условию записи, камере и дате, просмотр, скачивание и удаление
 - **Статус**: подключение, запись, зажигание, сигнал 4G, температура, карта памяти, GPS
 - **Пульт и все настройки** регистратора (режим радара, громкость, штампы, парковка, G-сенсор и т.д.)
 - **Мгновенные обновления** через MQTT и события `ibox_cloud_event` для автоматизаций
+- **Уведомления облака** как события: удар, новая запись в облаке, обновление базы камер
 - **Своя панель «iBOX Cloud»** в боковом меню: эфир, записи, пульт, настройки, события
 
 ### Установка
@@ -60,10 +61,11 @@ Unofficial integration for **iBOX** cloud dashcams - what the iBOX Assist app do
 
 - **Live view** with audio (720p / 360p, front / rear camera)
 - **Memory card recordings**: normal, protected, parking
-- **Cloud recordings**: parking shock clips the dashcam uploads to the cloud by itself (kept for a day) - filters by trigger, camera and date, watch, download and delete
+- **Cloud recordings**: parking shock clips the dashcam uploads to the cloud by itself - filters by trigger, camera and date, watch, download and delete
 - **Status**: connection, recording, ignition, 4G signal, temperature, memory card, GPS
 - **Remote control and all dashcam settings** (radar mode, volume, stamps, parking, G‑sensor, …)
 - **Instant updates** over MQTT and `ibox_cloud_event` events for automations
+- **Cloud notifications** as events: shock, new cloud recording, camera database update
 - **"iBOX Cloud" sidebar panel**: live, recordings, remote, settings, events
 
 ### Installation

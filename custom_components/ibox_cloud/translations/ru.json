@@ -121,7 +121,10 @@
               "parking_activity": "Срабатывание на парковке",
               "parking_recording": "Новая запись на парковке",
               "event_recording": "Новая защищённая запись",
-              "cloud_recording": "Новая запись в облаке"
+              "cloud_recording": "Новая запись в облаке",
+              "shock": "Зафиксирован удар",
+              "software_update": "Обновление ПО или базы камер",
+              "notification": "Уведомление"
             }
           }
         }

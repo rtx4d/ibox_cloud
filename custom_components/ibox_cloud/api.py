@@ -232,6 +232,19 @@ class IboxApiClient:
         except aiohttp.ClientError as err:
             raise IboxError(f"download failed: {err}") from err
 
+    # --- app notifications ---------------------------------------------------
+
+    async def push_history(self) -> list[dict[str, Any]]:
+        """Latest notifications sent to the app (newest first): shocks, saved videos, news.
+
+        Items: id, type, topic ("control", "software", "news"), title, message, created_at
+        and data; a saved shock video carries data.junan, a JSON string with fileName,
+        videoType, triggerTime and deviceId.
+        """
+        data = await self._request("GET", API_BASE, "/api/push/history")
+        history = (data or {}).get("history") if isinstance(data, dict) else None
+        return history if isinstance(history, list) else []
+
     # --- tracking / trips ---------------------------------------------------
 
     # Tracking calls take the cloud "did" (e.g. d.ib.0.<serial>) and the cloud
