@@ -10,6 +10,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 
 from .api import IboxApiClient
 from .const import CONF_SHOW_PANEL, CONF_TOKEN, DOMAIN
@@ -66,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> bool
 
     _disable_recording_entities_once(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    await coordinator.async_load_seen()
     await coordinator.async_start_push()
     entry.async_on_unload(coordinator.async_start_cloud_poll())
     entry.async_on_unload(coordinator.async_start_notification_poll())
@@ -90,6 +92,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> boo
     domain_data.get("panel_entries", set()).discard(entry.entry_id)
     await _async_update_panel(hass)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: IboxConfigEntry) -> None:
+    """Drop the stored ids of handled cloud clips and notifications."""
+    await Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.seen").async_remove()
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: IboxConfigEntry) -> None:

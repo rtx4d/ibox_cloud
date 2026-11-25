@@ -63,4 +63,6 @@ FILE_REFRESH_INTERVAL = 600  # seconds between memory card file list requests
 EVENT_FILE_INTERVAL = 120  # seconds between checks for new protected (shock) recordings
 CLOUD_VIDEO_INTERVAL = 120  # seconds between checks for new cloud recordings
 NOTIFICATION_INTERVAL = 60  # seconds between checks of the app notification history
+EVENT_MAX_AGE = 3600  # seconds: older cloud clips / notifications seen for the first time fire no event
+SEEN_KEEP_DAYS = 30  # how long ids of handled clips / notifications are remembered
 CLOUD_MEDIA_URL = "/api/ibox_cloud/cloud"  # decrypted cloud recordings: /<did>/<video id>/video|snapshot

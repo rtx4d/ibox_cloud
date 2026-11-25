@@ -16,10 +16,23 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import IboxApiClient, IboxAuthError, IboxError, decrypt_cloud_file
-from .const import CLOUD_MEDIA_URL, CLOUD_VIDEO_INTERVAL, DOMAIN, EVENT_FILE_INTERVAL, NOTIFICATION_INTERVAL, FILE_REFRESH_INTERVAL, STATUS_ATTRS, UPDATE_INTERVAL
+from .const import (
+    CLOUD_MEDIA_URL,
+    CLOUD_VIDEO_INTERVAL,
+    DOMAIN,
+    EVENT_FILE_INTERVAL,
+    EVENT_MAX_AGE,
+    FILE_REFRESH_INTERVAL,
+    NOTIFICATION_INTERVAL,
+    SEEN_KEEP_DAYS,
+    STATUS_ATTRS,
+    UPDATE_INTERVAL,
+)
 from .junan import (
     CHANNEL_FRONT,
     CHANNEL_REAR,
@@ -72,8 +85,12 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Cloud recordings: did -> {video id: item} from any listing (storage links + key),
         # with the time each was listed; ids seen by the poll (None until the baseline)
         self.cloud: dict[str, dict[int, dict[str, Any]]] = {}
-        self._cloud_seen: dict[str, set[int] | None] = {}
-        self._notifications_seen: set[int] | None = None  # None until the first read (the baseline)
+        # Handled cloud clips (did -> {id: trigger time}) and notifications ({id: created time}),
+        # in seconds, kept on disk so restarts and gaps in the cloud's answers don't repeat events.
+        # None until the first listing after a fresh install (that one only sets the baseline).
+        self._cloud_seen: dict[str, dict[int, float]] | None = None
+        self._notifications_seen: dict[int, float] | None = None
+        self._seen_store: Store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.seen")
         self.cloud_cache: OrderedDict[tuple[str, int, str], bytes] = OrderedDict()
 
     def settings(self, cloud_type: str) -> list[dict[str, Any]]:
@@ -172,6 +189,31 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.hass, self._async_poll_cloud, timedelta(seconds=CLOUD_VIDEO_INTERVAL)
         )
 
+    async def async_load_seen(self) -> None:
+        """Restore the ids of clips and notifications already turned into events."""
+        stored = await self._seen_store.async_load() or {}
+        if "cloud" in stored:
+            self._cloud_seen = {
+                dev_id: {int(k): v for k, v in ids.items()} for dev_id, ids in stored["cloud"].items()
+            }
+        if "notifications" in stored:
+            self._notifications_seen = {int(k): v for k, v in stored["notifications"].items()}
+
+    @callback
+    def _async_save_seen(self) -> None:
+        cutoff = time.time() - SEEN_KEEP_DAYS * 86400
+        for ids in [*(self._cloud_seen or {}).values(), self._notifications_seen or {}]:
+            for key in [k for k, ts in ids.items() if ts < cutoff]:
+                del ids[key]
+        self._seen_store.async_delay_save(
+            lambda: {"cloud": self._cloud_seen or {}, "notifications": self._notifications_seen or {}}, 10
+        )
+
+    @staticmethod
+    def _is_fresh(timestamp: float) -> bool:
+        """Only recent clips / notifications are worth an event (not ones found after a long outage)."""
+        return time.time() - timestamp <= EVENT_MAX_AGE
+
     @callback
     def async_start_notification_poll(self) -> Any:
         """Read the app's notification history regularly; returns the unsubscribe callback."""
@@ -192,13 +234,21 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except IboxError as err:
             _LOGGER.debug("notification history failed: %s", err)
             return
-        ids = {item["id"] for item in history if isinstance(item.get("id"), int)}
-        seen, self._notifications_seen = self._notifications_seen, (self._notifications_seen or set()) | ids
-        if seen is None:
-            return
+        history = [item for item in history if isinstance(item.get("id"), int)]
+        baseline = self._notifications_seen is None
+        seen = self._notifications_seen = self._notifications_seen or {}
+        new = []
+        for item in sorted(history, key=lambda i: i["id"]):
+            if item["id"] in seen:
+                continue
+            created = dt_util.parse_datetime(item.get("created_at") or "")
+            seen[item["id"]] = created.timestamp() if created else time.time()
+            if not baseline and self._is_fresh(seen[item["id"]]):
+                new.append(item)
+        self._async_save_seen()
         devices = list((self.data or {}).get("devices", {}))
         new_video = False
-        for item in sorted((i for i in history if i.get("id") in ids - seen), key=lambda i: i["id"]):
+        for item in new:
             video = self._notification_video(item)
             targets = [video["deviceId"]] if video.get("deviceId") in devices else devices
             info = {
@@ -431,13 +481,17 @@ class IboxCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             except HomeAssistantError as err:
                 _LOGGER.debug("cloud video list for %s failed: %s", dev_id, err)
                 continue
-            seen = self._cloud_seen.get(dev_id)
-            self._cloud_seen[dev_id] = {int(item["id"]) for item in items}
-            if seen is None:
-                continue  # the first listing only sets the baseline
+            baseline = self._cloud_seen is None or dev_id not in self._cloud_seen
+            if self._cloud_seen is None:
+                self._cloud_seen = {}
+            seen = self._cloud_seen.setdefault(dev_id, {})
             for item in sorted(items, key=lambda i: i.get("triggerTime") or 0):
-                if int(item["id"]) not in seen:
+                if int(item["id"]) in seen:
+                    continue
+                seen[int(item["id"])] = (item.get("triggerTime") or 0) / 1000 or time.time()
+                if not baseline and self._is_fresh(seen[int(item["id"])]):
                     self._dashcam_event(dev_id, "cloud_recording", self.cloud_video_info(dev_id, item))
+            self._async_save_seen()
 
     async def _async_list_cloud(self, dev_id: str, channel: int, **query: Any) -> list[dict[str, Any]]:
         try:
