@@ -1035,27 +1035,28 @@ class IboxPanel extends HTMLElement {
   _field(item, big, hidden = []) {
     const attrs = this._state.attrs || {}, value = attrs[item.id];
     const title = esc(this._label(TITLE_OVERRIDES[item.id] || item.title));
-    const missing = value === undefined;
+    // only admins may change settings (the set_attr command requires admin)
+    const locked = value === undefined || !this._hass?.user?.is_admin;
     if (item.type === "toggle") {
-      return `<label class="field toggle-field ${big ? "big" : ""}" data-id="${item.id}">
+      return `<label class="field toggle-field ${big ? "big" : ""}" data-id="${esc(item.id)}">
         <span class="field-title">${title}</span>
-        <span class="switch"><input type="checkbox" data-id="${item.id}" ${value === "1" ? "checked" : ""} ${missing ? "disabled" : ""}><span class="track"></span></span>
+        <span class="switch"><input type="checkbox" data-id="${esc(item.id)}" ${value === "1" ? "checked" : ""} ${locked ? "disabled" : ""}><span class="track"></span></span>
       </label>`;
     }
     if (item.type === "select_input") {
       const opts = this._optionLabels(item).filter(([k]) => !hidden.includes(k));
       if (big && opts.length <= 7) {
         const layout = item.id === "radar_mode" ? "lead" : item.id === "volume" ? "row" : "";
-        return `<div class="field big" data-id="${item.id}"><span class="field-title">${title}</span>
-          <div class="seg wrap ${layout}" data-id="${item.id}">${opts.map(([k, l]) => `<button class="seg-btn ${k === value ? "on" : ""}" data-value="${esc(k)}" ${missing ? "disabled" : ""}>${esc(l)}</button>`).join("")}</div></div>`;
+        return `<div class="field big" data-id="${esc(item.id)}"><span class="field-title">${title}</span>
+          <div class="seg wrap ${layout}" data-id="${esc(item.id)}">${opts.map(([k, l]) => `<button class="seg-btn ${k === value ? "on" : ""}" data-value="${esc(k)}" ${locked ? "disabled" : ""}>${esc(l)}</button>`).join("")}</div></div>`;
       }
-      return `<label class="field" data-id="${item.id}"><span class="field-title">${title}</span>
-        <select data-id="${item.id}" ${missing ? "disabled" : ""}>${value !== undefined && !opts.some(([k]) => k === value) ? `<option value="${esc(value)}" selected>${esc(value)}</option>` : ""}
+      return `<label class="field" data-id="${esc(item.id)}"><span class="field-title">${title}</span>
+        <select data-id="${esc(item.id)}" ${locked ? "disabled" : ""}>${value !== undefined && !opts.some(([k]) => k === value) ? `<option value="${esc(value)}" selected>${esc(value)}</option>` : ""}
         ${opts.map(([k, l]) => `<option value="${esc(k)}" ${k === value ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
     }
     if (item.type === "input") {
-      return `<label class="field" data-id="${item.id}"><span class="field-title">${title}</span>
-        <input type="text" class="text" data-id="${item.id}" value="${esc(value || "")}" ${missing ? "disabled" : ""}></label>`;
+      return `<label class="field" data-id="${esc(item.id)}"><span class="field-title">${title}</span>
+        <input type="text" class="text" data-id="${esc(item.id)}" value="${esc(value || "")}" ${locked ? "disabled" : ""}></label>`;
     }
     return "";
   }
@@ -1115,7 +1116,7 @@ class IboxPanel extends HTMLElement {
     const items = (schema.attributes_settings?.[this._settingsTab] || []).filter((i) => i.type !== "function");
     const current = tabs.find((x) => x.id === this._settingsTab);
     box.innerHTML = `<div class="settings">
-      <div class="card pad sections">${tabs.map((x) => `<button class="chip ${x.id === this._settingsTab ? "on" : ""}" data-tab="${x.id}">${esc(this._label(x.title))}</button>`).join("")}</div>
+      <div class="card pad sections">${tabs.map((x) => `<button class="chip ${x.id === this._settingsTab ? "on" : ""}" data-tab="${esc(x.id)}">${esc(this._label(x.title))}</button>`).join("")}</div>
       <div class="card">
         <div class="card-head"><span>${esc(this._label(current?.title))}</span></div>
         <div class="form">${items.map((i) => `${this._field(i, false)}${i.description ? `<div class="desc">${esc(this._label(i.description))}</div>` : ""}`).join("")}</div>

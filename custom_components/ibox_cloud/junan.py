@@ -111,6 +111,8 @@ class JunanMqtt:
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=f"aos-{random.randint(1, 2**31)}",
         )
+        # The Junan broker speaks plain MQTT only (no TLS on 1883, no 8883 or other TLS port);
+        # the vendor app connects the same way ("tcp://"). The account is issued by mqtt/info.
         self._client.username_pw_set(self._account, info["password"])
         self._client.on_connect = self._handle_connect
         self._client.on_message = self._handle_message

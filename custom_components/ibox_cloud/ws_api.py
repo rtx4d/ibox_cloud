@@ -94,9 +94,31 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
         vol.Required("value"): vol.Coerce(str),
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_set_attr(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict) -> None:
+    """Write one dashcam setting; only settings from the vendor's description, with a valid value."""
     coordinator, _stream = _hub(hass, msg["device_id"])
+    cloud_type = ((coordinator.data or {}).get("devices", {}).get(msg["device_id"], {})).get("cloud_type", "")
+    setting = next(
+        (
+            item for item in coordinator.settings(cloud_type)
+            if item.get("id") == msg["attr"] and item.get("type") != "function"
+        ),
+        None,
+    )
+    if setting is None:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, f"unknown setting {msg['attr']}")
+        return
+    if setting.get("type") == "toggle":
+        allowed = {"0", "1"}
+    elif setting.get("type") == "select_input" and setting.get("values"):
+        allowed = set(setting["values"])
+    else:
+        allowed = None  # free text input
+    if allowed is not None and msg["value"] not in allowed:
+        connection.send_error(msg["id"], websocket_api.ERR_INVALID_FORMAT, f"invalid value for {msg['attr']}")
+        return
     await coordinator.async_write_attr(msg["device_id"], msg["attr"], msg["value"])
     connection.send_result(msg["id"])
 

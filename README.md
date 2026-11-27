@@ -50,6 +50,7 @@
 - Интеграция **неофициальная** и не связана с iBOX. Протокол облака может измениться в любой момент.
 - Эфир и воспроизведение расходуют **мобильный трафик SIM** регистратора.
 - Видео идёт в **H.265**: нативный плеер работает в Chrome / Edge / Safari; в остальных браузерах переключите плеер на HLS.
+- Мгновенные обновления приходят через MQTT-брокер облака iBOX (Junan). Он принимает только подключения **без шифрования** (порт 1883, TLS не поддерживается); официальное приложение подключается так же. По этому каналу передаются логин и пароль MQTT, которые выдаёт облако (не пароль от аккаунта iBOX), и состояние регистратора.
 
 ---
 
@@ -91,6 +92,7 @@ If you already have a token, paste it into the "Token" field.
 - This integration is **unofficial** and not affiliated with iBOX. The cloud protocol may change at any time.
 - Live view and playback use the dashcam's **mobile data**.
 - Video is **H.265**: the native player works in Chrome / Edge / Safari; in other browsers switch the player to HLS.
+- Instant updates come through the iBOX (Junan) cloud MQTT broker, which only accepts **unencrypted** connections (port 1883, no TLS); the official app connects the same way. This channel carries the MQTT login issued by the cloud (not your iBOX account password) and the dashcam state.
 
 ---
 
