@@ -7,6 +7,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 
 from .api import IboxApiClient, IboxAuthError, IboxError
 from .const import (
@@ -81,7 +82,7 @@ class IboxConfigFlow(ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_PHONE): str,
                 vol.Optional("use_call", default=False): bool,
-                vol.Optional(CONF_TOKEN): str,
+                vol.Optional(CONF_TOKEN): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
