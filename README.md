@@ -1,6 +1,6 @@
 # iBOX Cloud for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 ![Version](https://img.shields.io/github/v/release/rtx4d/ibox_cloud?label=version)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.10%2B-41BDF5)
 
@@ -29,7 +29,9 @@
 
 ### Установка
 
-**Через HACS:** *HACS → ⋮ → Пользовательские репозитории* → `https://github.com/rtx4d/ibox_cloud`, тип *Интеграция* → *Добавить* → Найти в поиске *iBOX Cloud* и установить.
+**Через HACS:** откройте HACS, найдите в поиске *iBOX Cloud* и установите.
+
+Если интеграция не находится, добавьте репозиторий вручную: *HACS → ⋮ → Пользовательские репозитории* → `https://github.com/rtx4d/ibox_cloud`, тип *Интеграция* → *Добавить*.
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rtx4d&repository=ibox_cloud&category=integration)
 
@@ -71,7 +73,9 @@ Unofficial integration for **iBOX** cloud dashcams - what the iBOX Assist app do
 
 ### Installation
 
-**HACS:** *HACS → ⋮ → Custom repositories* → `https://github.com/rtx4d/ibox_cloud`, type *Integration* → *Add* → search for *iBOX Cloud* and install it.
+**HACS:** open HACS, search for *iBOX Cloud* and install it.
+
+If it doesn't show up, add the repository manually: *HACS → ⋮ → Custom repositories* → `https://github.com/rtx4d/ibox_cloud`, type *Integration* → *Add*.
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=rtx4d&repository=ibox_cloud&category=integration)
 
